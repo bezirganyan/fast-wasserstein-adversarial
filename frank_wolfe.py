@@ -1,4 +1,3 @@
-import torch
 import torch.nn as nn
 
 from data import str2dataset
@@ -125,7 +124,7 @@ class FrankWolfe(WassersteinAttack):
                 adv_example = self.coupling2adversarial(pi, X)
                 check_hypercube(adv_example, tol=self.eps * 1e-1, verbose=self.verbose)
                 self.check_nonnegativity(pi / normalization, tol=1e-6, verbose=self.verbose)
-                self.check_marginal_constraint(pi / normalization, X / normalization, tol=1e-6, verbose=self.verbose)
+                self.check_marginal_constraint(pi / normalization, X / normalization, tol=1e-5, verbose=self.verbose)
                 self.check_transport_cost(pi / normalization, tol=self.eps * 1e-3, verbose=self.verbose)
 
         """Do not clip the adversarial examples to preserve pixel mass"""

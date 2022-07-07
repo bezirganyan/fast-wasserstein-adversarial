@@ -1,6 +1,6 @@
 import torch
 
-from advertorch.attacks import Attack
+from base_attack import Attack
 
 from sparse_tensor import initialize_dense_cost
 from sparse_tensor import initialize_sparse_cost
