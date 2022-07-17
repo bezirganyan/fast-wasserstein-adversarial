@@ -13,6 +13,7 @@ from frank_wolfe import FrankWolfe
 def craft(rank, dataloader_list, res_path, eps_list):
     fparam = dataloader_list[0].split('_')
     dataloader = torch.load(os.path.join(res_path, f'{fparam[0]}_{rank}_dtl.pt'))
+    torch.save(dataloader, f'results_wass/improved_{rank}_dtl.pt')
     device = torch.device(f'cuda:{rank}')
     mu = torch.tensor([0.485, 0.456, 0.406], dtype=torch.float, device=device).unsqueeze(-1).unsqueeze(-1)
     std = torch.tensor([0.229, 0.224, 0.225], dtype=torch.float, device=device).unsqueeze(-1).unsqueeze(-1)
@@ -75,8 +76,8 @@ def craft(rank, dataloader_list, res_path, eps_list):
 
         adv_samples = torch.cat(adv_samples, dim=0)
         perturbations = torch.cat(perturbations, dim=0)
-        adv_path = f'results_wass/fw_wasserstein_{eps:.3f}_{rank}.pt'
-        prt_path = f'results_wass/fw_wasserstein_{eps:.3f}_{rank}_prt.pt'
+        adv_path = f'results_wass/fw_wasserstein_{eps:.5f}_{rank}.pt'
+        prt_path = f'results_wass/fw_wasserstein_{eps:.5f}_{rank}_prt.pt'
         torch.save(adv_samples, adv_path)
         torch.save(perturbations, prt_path)
 
@@ -92,9 +93,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-
     file_list = os.listdir(args.dtl_folder)
     dataloader_list = [f for f in file_list if f.endswith('dtl.pt')]
 
     eps_list = np.linspace(args.eps_start, args.eps_end, args.eps_count)
-    mp.spawn(fn=craft, args=(dataloader_list, args.dtl_folder, eps_list), nprocs=args.n_procs, )
+    mp.spawn(fn=craft, args=(dataloader_list, args.dtl_folder, eps_list), nprocs=args.n_procs)
