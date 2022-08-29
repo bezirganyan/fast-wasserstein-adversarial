@@ -1,5 +1,6 @@
 import argparse
 import os
+import time
 
 import numpy as np
 from torch import nn
@@ -10,10 +11,10 @@ import torch.multiprocessing as mp
 from frank_wolfe import FrankWolfe
 
 
-def craft(rank, dataloader_list, res_path, eps_list):
+def craft(rank, dataloader_list, dataloader_path, result_path, eps_list):
     fparam = dataloader_list[0].split('_')
-    dataloader = torch.load(os.path.join(res_path, f'{fparam[0]}_{rank}_dtl.pt'))
-    torch.save(dataloader, f'results_wass/improved_{rank}_dtl.pt')
+    dataloader = torch.load(os.path.join(dataloader_path, f'{fparam[0]}_{rank}_dtl.pt'))
+    torch.save(dataloader, f'{result_path}/fw_{rank}_dtl.pt')
     device = torch.device(f'cuda:{rank}')
     mu = torch.tensor([0.485, 0.456, 0.406], dtype=torch.float, device=device).unsqueeze(-1).unsqueeze(-1)
     std = torch.tensor([0.229, 0.224, 0.225], dtype=torch.float, device=device).unsqueeze(-1).unsqueeze(-1)
@@ -27,6 +28,8 @@ def craft(rank, dataloader_list, res_path, eps_list):
     for param in net.parameters():
         param.requires_grad = False
     for eps in eps_list:
+        print(f'{rank} ==> Craft attack with eps = {eps}')
+        print('________________________________________')
         correct = 0
         total = 0
 
@@ -44,11 +47,15 @@ def craft(rank, dataloader_list, res_path, eps_list):
                                  verbose=True)
         adv_samples = []
         perturbations = []
+        durations = []
 
 
         for batch_idx, (cln_data, y) in enumerate(dataloader):
             cln_data, y = unnormalize(cln_data.to(device)), y.to(device)
+            start_time = time.time()
             adv_data = frank_wolfe.perturb(cln_data, y)
+            duration = time.time() - start_time
+            durations.append(duration)
             assert adv_data is not None
 
             adv_samples.append(adv_data.detach().cpu())
@@ -76,16 +83,19 @@ def craft(rank, dataloader_list, res_path, eps_list):
 
         adv_samples = torch.cat(adv_samples, dim=0)
         perturbations = torch.cat(perturbations, dim=0)
-        adv_path = f'results_wass/fw_wasserstein_{eps:.5f}_{rank}.pt'
-        prt_path = f'results_wass/fw_wasserstein_{eps:.5f}_{rank}_prt.pt'
+        adv_path = f'{result_path}/fw_wasserstein_{eps:.5f}_{rank}.pt'
+        prt_path = f'{result_path}/fw_wasserstein_{eps:.5f}_{rank}_prt.pt'
+        durations_path = f'{result_path}/fw_wasserstein_{eps:.5f}_{rank}_dur.pt'
         torch.save(adv_samples, adv_path)
         torch.save(perturbations, prt_path)
+        torch.save(durations, durations_path)
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--dtl_folder', type=str, default='../adversarial_arena/results')
+    parser.add_argument('--result_path', type=str, default='results_wass')
     parser.add_argument('--n_procs', type=int, default=8)
     parser.add_argument('--eps_start', type=float, default=0.05)
     parser.add_argument('--eps_end', type=float, default=1.0)
@@ -95,6 +105,8 @@ if __name__ == '__main__':
 
     file_list = os.listdir(args.dtl_folder)
     dataloader_list = [f for f in file_list if f.endswith('dtl.pt')]
+    if not os.path.exists(args.result_path):
+        os.makedirs(args.result_path)
 
     eps_list = np.linspace(args.eps_start, args.eps_end, args.eps_count)
-    mp.spawn(fn=craft, args=(dataloader_list, args.dtl_folder, eps_list), nprocs=args.n_procs)
+    mp.spawn(fn=craft, args=(dataloader_list, args.dtl_folder, args.result_path, eps_list), nprocs=args.n_procs)
